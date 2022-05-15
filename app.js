@@ -1,20 +1,40 @@
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const rfs = require('rotating-file-stream');
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+const usersRouter = require('./routes/users');
+const { ValidationError } = require('express-validation');
 
-var app = express();
+const app = express();
 
-app.use(logger('dev'));
+//Loggin in the files
+let accessLogStream = rfs.createStream('access.log', {
+    interval: '1d',
+    path: path.join(__dirname, 'logs')
+});
+
+//Setup the logger
+app.use(logger('common', {
+    stream: accessLogStream
+}));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({
+    extended: false
+}));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', indexRouter);
+//Routes
 app.use('/users', usersRouter);
+
+app.use(function (err, req, res, next) {
+    if (err instanceof ValidationError) {
+        return res.status(err.statusCode).json(err)
+    }
+
+    return res.status(500).json(err)
+});
 
 module.exports = app;
